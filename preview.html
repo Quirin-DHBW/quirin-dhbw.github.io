@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>TropicShield App Preview</title>
+
+<style>
+  :root{
+    --phone-w: 390px;
+    --phone-h: 844px;
+    --accent: #10b981;
+  }
+
+  html,body{
+    margin:0;
+    height:100%;
+    background:linear-gradient(180deg,#071020,#0b1220);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:system-ui,-apple-system,Segoe UI,Roboto;
+    color:white;
+  }
+
+  .phone{
+    width:var(--phone-w);
+    height:var(--phone-h);
+    border-radius:36px;
+    overflow:hidden;
+    background:#0b1220;
+    box-shadow:0 30px 60px rgba(0,0,0,.6);
+    position:relative;
+  }
+
+  .status{
+    position:absolute;
+    top:0;
+    left:0;
+    right:0;
+    height:44px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:0 14px;
+    font-size:12px;
+    opacity:.9;
+    z-index:10;
+  }
+
+  .appbar{
+    position:absolute;
+    top:44px;
+    left:0;
+    right:0;
+    height:56px;
+    display:flex;
+    align-items:center;
+    padding:0 16px;
+    font-weight:600;
+    border-bottom:1px solid rgba(255,255,255,.05);
+    background:rgb(11, 45, 8);
+    z-index:10;
+  }
+
+  /* MAP LAYER (lowest) */
+  .map-container{
+    position:absolute;
+    top:100px;
+    bottom:88px;
+    left:0;
+    right:0;
+    overflow:hidden;
+    z-index:1;
+  }
+
+  .map-container img{
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    z-index:1;
+  }
+
+  /* HEATMAP LAYER (above image) */
+  canvas{
+    position:absolute;
+    top:0;
+    left:0;
+    width:100%;
+    height:100%;
+    pointer-events:none;
+    z-index:2;
+  }
+
+  /* UI OVERLAYS */
+  .legend{
+    position:absolute;
+    top:120px;
+    left:14px;
+    background:rgba(0,0,0,.55);
+    padding:10px;
+    border-radius:12px;
+    font-size:12px;
+    z-index:10;
+  }
+
+  .gradient{
+    height:12px;
+    width:120px;
+    border-radius:6px;
+    background:linear-gradient(90deg,blue,lime,orange,red);
+    margin:6px 0;
+  }
+
+  .chips{
+    position:absolute;
+    top:120px;
+    right:14px;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    z-index:10;
+  }
+
+  .chip{
+    padding:8px 10px;
+    border-radius:10px;
+    background:rgba(85, 85, 85, 0.6);
+    font-size:13px;
+    cursor:pointer;
+  }
+
+  .chip.active{
+    background:var(--accent);
+    color:#04221a;
+    font-weight:600;
+  }
+
+  .bottom-nav{
+    position:absolute;
+    bottom:0;
+    left:0;
+    right:0;
+    height:88px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:0 18px;
+    background:rgb(11, 45, 8);
+    z-index:10;
+  }
+
+  .nav-btn{
+    width:52px;
+    height:52px;
+    border-radius:14px;
+    background:rgba(255,255,255,.12);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:14px;
+    cursor:pointer;
+  }
+
+  .fab{
+    width:64px;
+    height:64px;
+    border-radius:20px;
+    background:var(--accent);
+    color:#04221a;
+    font-weight:700;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    cursor:pointer;
+  }
+
+  /* MODALS & PANELS */
+  .modal, .panel {
+    position:absolute;
+    left:14px;
+    right:14px;
+    background:rgba(2,6,7,0.98);
+    border-radius:14px;
+    padding:12px;
+    color:#e6f7f0;
+    z-index:20;
+    box-shadow:0 10px 30px rgba(0,0,0,.6);
+  }
+
+  .modal { top:160px; display:none; }
+  .panel { bottom:110px; display:none; max-height:42%; overflow:auto; }
+
+  .modal h3, .panel h3{ margin:0 0 8px 0; font-size:14px; }
+  .modal p, .panel p{ margin:0 0 8px 0; font-size:13px; color:rgba(230,247,240,.9); }
+
+  .toast {
+    position:absolute;
+    top:74px;
+    left:50%;
+    transform:translateX(-50%);
+    background:linear-gradient(90deg,#ff9f43,#ff6b6b);
+    padding:8px 12px;
+    border-radius:12px;
+    font-weight:600;
+    display:none;
+    z-index:30;
+    color:#04140f;
+  }
+
+  .loc-btn{
+    position:absolute;
+    right:18px;
+    bottom:154px;
+    width:44px;
+    height:44px;
+    border-radius:12px;
+    background:rgba(255,255,255,.08);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    z-index:20;
+    cursor:pointer;
+  }
+</style>
+</head>
+<body>
+
+<div class="phone">
+
+  <div class="status">
+    <div>Preview</div>
+    <div>9:41 🔋87%</div>
+  </div>
+
+  <div class="appbar">
+    TropicShield — Infection Heatmap
+  </div>
+
+  <div class="map-container">
+    <img src="placeholder.png" alt="Map placeholder">
+    <canvas id="heatmap"></canvas>
+  </div>
+
+  <div class="legend">
+    Infection Risk
+    <div class="gradient"></div>
+    Low → High
+  </div>
+
+  <div class="chips">
+    <div class="chip active" data-type="flu">Dengue</div>
+    <div class="chip" data-type="measles">Malaria</div>
+    <div class="chip" data-type="novel">Mosquitos</div>
+  </div>
+
+  <div class="loc-btn" title="Zentrieren">📍</div>
+
+  <div class="modal" id="warningModal">
+    <h3>Warnungen</h3>
+    <p><strong>Hochrisikozone:</strong> Starker Mückenbefall in Ihrer Nähe (2 km). Vermeiden Sie stehendes Wasser.</p>
+    <p><em>Kurz:</em> Tragen Sie Repellent, benutzen Sie Moskitonetze, prüfen Sie Impfstatus.</p>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="warningDetails" class="chip">Mehr lesen</button>
+      <button id="closeWarning" class="chip">Schließen</button>
+    </div>
+  </div>
+
+  <div class="panel" id="recommendPanel">
+    <h3>Persönliche Empfehlungen</h3>
+    <p><strong>Für Sie:</strong> Reisende, 30–45, keine Risikofaktoren eingetragen.</p>
+    <p>Empfohlen: Dengue-Impfberatung, tagsüber Mückenschutz, vermeiden Sie Grillplätze nach Regen.</p>
+    <p>Aktionen: Impfberatung buchen • Checkliste herunterladen</p>
+  </div>
+
+  <div class="modal" id="disclaimerModal">
+    <h3>Hinweis / Disclaimer</h3>
+    <p>Vorhersagen dienen nur Informationszwecken. TropicShield übernimmt keine Haftung für Entscheidungen auf Basis der Daten.</p>
+    <div style="display:flex;gap:8px;margin-top:8px">
+      <button id="acceptDisclaimer" class="chip">Verstanden</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">🔔 Erhöhtes Risiko in Ihrer Nähe — Tipps anzeigen</div>
+
+  <div class="bottom-nav">
+    <div class="nav-btn">⚠️</div>
+    <div class="fab">Info</div>
+    <div class="nav-btn">⚙️</div>
+  </div>
+
+</div>
+
+</body>
+<script>
+// Simple interactive placeholders implementing user-stories behavior
+const warningBtn = document.querySelector('.bottom-nav .nav-btn');
+const fab = document.querySelector('.fab');
+const settingsBtn = document.querySelectorAll('.bottom-nav .nav-btn')[1];
+const warningModal = document.getElementById('warningModal');
+const recommendPanel = document.getElementById('recommendPanel');
+const disclaimerModal = document.getElementById('disclaimerModal');
+const toast = document.getElementById('toast');
+const locBtn = document.querySelector('.loc-btn');
+
+function show(el){ el.style.display='block'; }
+function hide(el){ el.style.display='none'; }
+
+warningBtn.addEventListener('click',()=>{
+  // Show warning modal (User story: Warnungen einsehen)
+  show(warningModal);
+  hide(recommendPanel);
+});
+
+document.getElementById('closeWarning').addEventListener('click',()=>hide(warningModal));
+
+document.getElementById('warningDetails').addEventListener('click',()=>{
+  hide(warningModal);
+  show(recommendPanel);
+});
+
+fab.addEventListener('click',()=>{
+  // Open recommendations (User story: Persönliche Empfehlungen)
+  show(recommendPanel);
+  hide(warningModal);
+});
+
+settingsBtn.addEventListener('click',()=>{
+  // Open disclaimer (User story: Disclaimer Anzeigen)
+  if(!localStorage.getItem('disclaimerSeen')){
+    show(disclaimerModal);
+  } else {
+    alert('Einstellungen (Platzhalter)');
+  }
+});
+
+document.getElementById('acceptDisclaimer').addEventListener('click',()=>{
+  localStorage.setItem('disclaimerSeen','1');
+  hide(disclaimerModal);
+});
+
+locBtn.addEventListener('click',()=>{
+  // Simulate centering the map (User story: Karte Zentrieren)
+  toast.textContent = 'Karte zentriert auf Ihren Standort';
+  show(toast);
+  setTimeout(()=>hide(toast),1600);
+});
+
+// Simulate push notification after a short delay (User story: Warnungs notification)
+setTimeout(()=>{
+  // show toast and open warnings if accepted
+  toast.style.display='block';
+  toast.addEventListener('click',()=>{
+    hide(toast);
+    show(warningModal);
+  });
+  setTimeout(()=>{ if(toast.style.display==='block') hide(toast); },3500);
+},2200);
+
+// Show disclaimer the first time user opens the preview
+window.addEventListener('load',()=>{
+  if(!localStorage.getItem('disclaimerSeen')){
+    show(disclaimerModal);
+  }
+});
+
+// Chip selection (type selector) - simple UI feedback
+document.querySelectorAll('.chip[data-type]').forEach(c=>{
+  c.addEventListener('click',()=>{
+    document.querySelectorAll('.chip[data-type]').forEach(x=>x.classList.remove('active'));
+    c.classList.add('active');
+    // update legend / placeholder behaviour
+    recommendPanel.querySelector('h3').textContent = c.textContent + ' — Empfehlungen';
+  });
+});
+
+// Clicking map image also opens a quick warning (placeholder for tapping map)
+document.querySelector('.map-container img').addEventListener('click',()=>{
+  show(warningModal);
+});
+
+</script>
+</html>
+</html>
