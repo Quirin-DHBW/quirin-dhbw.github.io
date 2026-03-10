@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width,initial-scale=1" />
 <title>TropicShield App Preview</title>
 
+<!--This is a buttons-to-nowhere Mockup of the TropicShield app -->
+<!--It's purpose is to show the user infection risks on a heatmap and provide news and recommendations-->
+<!--The HTML immitates the UI of a mobile app, for easy preview in a browser. UI is in german for now-->
+
+<!--TODO: Heatmap overlay over map-->
+<!--TODO: Fake search bar for location and time with a "Reise planen" in the bottom UI-->
+<!--TODO: change Warning popup to happen only after search, saying there is risk at the given time-->
+
 <style>
   :root{
     --phone-w: 390px;
@@ -74,18 +82,43 @@
     z-index:1;
   }
 
-  .map-container img{
+  /* MAP CANVAS (interactive) */
+  #mapCanvas{
     position:absolute;
     top:0;
     left:0;
     width:100%;
     height:100%;
-    object-fit:cover;
     z-index:1;
+    touch-action: none;
+    cursor:grab;
+  }
+
+  .zoom-controls{
+    position:absolute;
+    left:12px;
+    bottom:12px;
+    top:auto;
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    z-index:15;
+  }
+
+  .zoom-controls button{
+    width:40px;
+    height:40px;
+    border-radius:10px;
+    background:rgba(255,255,255,0.08);
+    color:white;
+    border:0;
+    font-size:20px;
+    cursor:pointer;
   }
 
   /* HEATMAP LAYER (above image) */
-  canvas{
+  /* Heatmap canvas only (on top of map) */
+  #heatmap{
     position:absolute;
     top:0;
     left:0;
@@ -178,6 +211,46 @@
     cursor:pointer;
   }
 
+  .center-actions{
+    display:flex;
+    gap:10px;
+    align-items:center;
+  }
+
+  .plan-btn{
+    padding:8px 12px;
+    border-radius:14px;
+    background:rgba(255,255,255,0.12);
+    color:white;
+    font-weight:600;
+    cursor:pointer;
+  }
+
+  /* bottom search bar inside map */
+  .search-bar{
+    position:absolute;
+    left:14px;
+    right:14px;
+    bottom:110px;
+    background:rgba(2,6,7,0.95);
+    border-radius:12px;
+    padding:10px;
+    display:none;
+    z-index:25;
+    box-shadow:0 8px 24px rgba(0,0,0,.5);
+  }
+
+  .search-bar input{
+    width:68%;
+    padding:8px 10px;
+    border-radius:8px;
+    border:0;
+    margin-right:8px;
+    font-size:14px;
+  }
+
+  .search-bar .chip{ padding:8px 10px; }
+
   /* MODALS & PANELS */
   .modal, .panel {
     position:absolute;
@@ -241,8 +314,14 @@
   </div>
 
   <div class="map-container">
-    <img src="placeholder.png" alt="Map placeholder">
+    <!-- Use local SVG as the interactive map. No external sources. -->
+    <img id="mapImage" src="WorldMap.svg" alt="World map" draggable="false" style="width:100%;height:100%;object-fit:contain;touch-action:none;cursor:grab;" />
     <canvas id="heatmap"></canvas>
+    <div class="search-bar" id="travelSearch">
+      <input id="searchInput" placeholder="Ort oder Datum eingeben..." />
+      <button id="searchBtn" class="chip">Suchen</button>
+      <button id="closeSearch" class="chip">Schließen</button>
+    </div>
   </div>
 
   <div class="legend">
@@ -288,7 +367,10 @@
 
   <div class="bottom-nav">
     <div class="nav-btn">⚠️</div>
-    <div class="fab">Info</div>
+    <div class="center-actions">
+      <div class="fab">Info</div>
+      <div class="plan-btn">Reise Planen</div>
+    </div>
     <div class="nav-btn">⚙️</div>
   </div>
 
@@ -296,7 +378,164 @@
 
 </body>
 <script>
-// Simple interactive placeholders implementing user-stories behavior
+// Map pan/zoom using local WorldMap.svg (no external sources)
+const mapContainer = document.querySelector('.map-container');
+const heatmapCanvas = document.getElementById('heatmap');
+const mapImage = document.getElementById('mapImage');
+
+// Reasonable zoom bounds for the phone preview: prevent too-far-out and too-far-in
+let scale = 1, minScale = 0.6, maxScale = 4, offsetX = 0, offsetY = 0;
+let pointers = new Map();
+let dragging = false;
+let lastX = 0, lastY = 0;
+let pinchStartDist = 0, pinchStartScale = 1, pinchStartMid = {x:0,y:0};
+
+function clamp(v,a,b){ return Math.min(b, Math.max(a, v)); }
+
+function updateTransform(){
+  mapImage.style.transformOrigin = '0 0';
+  mapImage.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+}
+
+function resizeCanvases(){
+  const dpr = window.devicePixelRatio || 1;
+  heatmapCanvas.width = Math.floor(mapContainer.clientWidth * dpr);
+  heatmapCanvas.height = Math.floor(mapContainer.clientHeight * dpr);
+  heatmapCanvas.style.width = mapContainer.clientWidth + 'px';
+  heatmapCanvas.style.height = mapContainer.clientHeight + 'px';
+  // keep image sized with container; transform handles positioning
+  mapImage.style.width = '100%';
+  mapImage.style.height = '100%';
+  updateTransform();
+}
+
+window.addEventListener('resize', resizeCanvases);
+resizeCanvases();
+
+// Attempt to fit image initially when it's loaded
+mapImage.addEventListener('load', ()=>{
+  try{
+    const cw = mapContainer.clientWidth;
+    const ch = mapContainer.clientHeight;
+    const iw = mapImage.naturalWidth || cw;
+    const ih = mapImage.naturalHeight || ch;
+    const fitScale = Math.min(cw / iw, ch / ih);
+    // start slightly zoomed in from the 'fit' scale so the map isn't too small
+    const initialMultiplier = 1.25;
+    scale = clamp((fitScale || 1) * initialMultiplier, minScale, maxScale);
+    // center horizontally and nudge down a bit to avoid top-left bias
+    offsetX = (cw - iw*scale)/2;
+    offsetY = (ch - ih*scale)/2 + Math.round(ch * 0.04);
+  }catch(e){}
+  updateTransform();
+});
+
+function getPointFromEvent(e){
+  const rect = mapContainer.getBoundingClientRect();
+  return {x: e.clientX - rect.left, y: e.clientY - rect.top};
+}
+
+function distance(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.hypot(dx,dy); }
+
+mapContainer.addEventListener('pointerdown', (e)=>{
+  mapContainer.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(pointers.size === 1){
+    const p = getPointFromEvent(e);
+    dragging = true; lastX = p.x; lastY = p.y;
+    mapImage.style.cursor='grabbing';
+  }
+  if(pointers.size === 2){
+    // start pinch
+    const pts = Array.from(pointers.values()).map(p=>({x:p.x, y:p.y}));
+    pinchStartDist = distance(pts[0], pts[1]);
+    pinchStartScale = scale;
+    const midScreen = {x:(pts[0].x+pts[1].x)/2, y:(pts[0].y+pts[1].y)/2};
+    const rect = mapContainer.getBoundingClientRect();
+    pinchStartMid = { x: midScreen.x - rect.left, y: midScreen.y - rect.top };
+  }
+});
+
+mapContainer.addEventListener('pointermove', (e)=>{
+  if(!pointers.has(e.pointerId)) return;
+  pointers.set(e.pointerId, {x:e.clientX, y:e.clientY});
+  if(pointers.size === 1 && dragging){
+    const p = getPointFromEvent(e);
+    const dx = p.x - lastX; const dy = p.y - lastY;
+    offsetX += dx; offsetY += dy; lastX = p.x; lastY = p.y; updateTransform();
+  } else if(pointers.size === 2){
+    // pinch zoom handling
+    const pts = Array.from(pointers.values()).map(p=>({x:p.x, y:p.y}));
+    const rect = mapContainer.getBoundingClientRect();
+    const pA = {x: pts[0].x - rect.left, y: pts[0].y - rect.top};
+    const pB = {x: pts[1].x - rect.left, y: pts[1].y - rect.top};
+    const d = distance(pA, pB);
+    if(pinchStartDist <= 0) return;
+    const factor = d / pinchStartDist;
+    const newScale = clamp(pinchStartScale * factor, minScale, maxScale);
+    const imgX = (pinchStartMid.x - offsetX) / scale;
+    const imgY = (pinchStartMid.y - offsetY) / scale;
+    // update scale then adjust offsets to keep midpoint stable
+    scale = newScale;
+    offsetX = pinchStartMid.x - imgX * scale;
+    offsetY = pinchStartMid.y - imgY * scale;
+    updateTransform();
+  }
+});
+
+mapContainer.addEventListener('pointerup', (e)=>{
+  pointers.delete(e.pointerId);
+  try{ mapContainer.releasePointerCapture(e.pointerId); }catch(err){}
+  if(pointers.size === 0){ dragging = false; mapImage.style.cursor='grab'; }
+  if(pointers.size < 2){ pinchStartDist = 0; }
+});
+mapContainer.addEventListener('pointercancel', (e)=>{ pointers.delete(e.pointerId); dragging=false; mapImage.style.cursor='grab'; pinchStartDist=0; });
+
+// click detection (prefer small-move clicks)
+let clickCandidate = false;
+mapContainer.addEventListener('pointerdown', ()=>{ clickCandidate = true; });
+mapContainer.addEventListener('pointermove', ()=>{ clickCandidate = false; });
+mapContainer.addEventListener('click', ()=>{ if(clickCandidate) show(warningModal); });
+
+// wheel zoom (center on cursor)
+mapContainer.addEventListener('wheel', (e)=>{
+  e.preventDefault();
+  const rect = mapContainer.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const factor = e.deltaY < 0 ? 1.08 : 0.92;
+  const imgX = (mx - offsetX) / scale;
+  const imgY = (my - offsetY) / scale;
+  scale = clamp(scale * factor, minScale, maxScale);
+  offsetX = mx - imgX * scale;
+  offsetY = my - imgY * scale;
+  updateTransform();
+}, {passive:false});
+
+function zoomBy(factor, cx, cy){
+  const rect = mapContainer.getBoundingClientRect();
+  const mx = (typeof cx === 'number') ? cx : rect.width/2;
+  const my = (typeof cy === 'number') ? cy : rect.height/2;
+  const imgX = (mx - offsetX) / scale;
+  const imgY = (my - offsetY) / scale;
+  scale = clamp(scale * factor, minScale, maxScale);
+  offsetX = mx - imgX * scale;
+  offsetY = my - imgY * scale;
+  updateTransform();
+}
+
+function createZoomControls(){
+  const zc = document.createElement('div');
+  zc.className = 'zoom-controls';
+  zc.innerHTML = '<button id="zoomIn">+</button><button id="zoomOut">−</button>';
+  mapContainer.appendChild(zc);
+  document.getElementById('zoomIn').addEventListener('click', ()=>zoomBy(1.25));
+  document.getElementById('zoomOut').addEventListener('click', ()=>zoomBy(0.8));
+}
+createZoomControls();
+
+// --- Existing UI behavior (kept mostly unchanged) ---
+
 const warningBtn = document.querySelector('.bottom-nav .nav-btn');
 const fab = document.querySelector('.fab');
 const settingsBtn = document.querySelectorAll('.bottom-nav .nav-btn')[1];
@@ -305,83 +544,38 @@ const recommendPanel = document.getElementById('recommendPanel');
 const disclaimerModal = document.getElementById('disclaimerModal');
 const toast = document.getElementById('toast');
 const locBtn = document.querySelector('.loc-btn');
+const planBtn = document.querySelector('.plan-btn');
+const travelSearch = document.getElementById('travelSearch');
+const searchInput = document.getElementById('searchInput');
+const searchBtn = document.getElementById('searchBtn');
+const closeSearch = document.getElementById('closeSearch');
 
 function show(el){ el.style.display='block'; }
 function hide(el){ el.style.display='none'; }
 
-warningBtn.addEventListener('click',()=>{
-  // Show warning modal (User story: Warnungen einsehen)
-  show(warningModal);
-  hide(recommendPanel);
-});
-
+warningBtn.addEventListener('click',()=>{ show(warningModal); hide(recommendPanel); });
 document.getElementById('closeWarning').addEventListener('click',()=>hide(warningModal));
-
-document.getElementById('warningDetails').addEventListener('click',()=>{
-  hide(warningModal);
-  show(recommendPanel);
-});
-
-fab.addEventListener('click',()=>{
-  // Open recommendations (User story: Persönliche Empfehlungen)
-  show(recommendPanel);
-  hide(warningModal);
-});
+document.getElementById('warningDetails').addEventListener('click',()=>{ hide(warningModal); show(recommendPanel); });
+fab.addEventListener('click',()=>{ show(recommendPanel); hide(warningModal); });
 
 settingsBtn.addEventListener('click',()=>{
-  // Open disclaimer (User story: Disclaimer Anzeigen)
-  if(!localStorage.getItem('disclaimerSeen')){
-    show(disclaimerModal);
-  } else {
-    alert('Einstellungen (Platzhalter)');
-  }
+  if(!localStorage.getItem('disclaimerSeen')){ show(disclaimerModal); } else { alert('Einstellungen (Platzhalter)'); }
 });
 
-document.getElementById('acceptDisclaimer').addEventListener('click',()=>{
-  localStorage.setItem('disclaimerSeen','1');
-  hide(disclaimerModal);
-});
+if(planBtn){ planBtn.addEventListener('click',()=>{ if(travelSearch.style.display==='block'){ travelSearch.style.display='none'; } else { travelSearch.style.display='block'; searchInput.focus(); } hide(warningModal); hide(recommendPanel); }); }
+if(closeSearch){ closeSearch.addEventListener('click',()=>{ travelSearch.style.display='none'; }); }
+if(searchBtn){ searchBtn.addEventListener('click',()=>{ const q = searchInput.value.trim(); if(!q) return; toast.textContent = 'Reiseplanung: ' + q; show(toast); setTimeout(()=>hide(toast),2000); travelSearch.style.display='none'; }); }
 
-locBtn.addEventListener('click',()=>{
-  // Simulate centering the map (User story: Karte Zentrieren)
-  toast.textContent = 'Karte zentriert auf Ihren Standort';
-  show(toast);
-  setTimeout(()=>hide(toast),1600);
-});
+document.getElementById('acceptDisclaimer').addEventListener('click',()=>{ localStorage.setItem('disclaimerSeen','1'); hide(disclaimerModal); });
 
-// Simulate push notification after a short delay (User story: Warnungs notification)
-setTimeout(()=>{
-  // show toast and open warnings if accepted
-  toast.style.display='block';
-  toast.addEventListener('click',()=>{
-    hide(toast);
-    show(warningModal);
-  });
-  setTimeout(()=>{ if(toast.style.display==='block') hide(toast); },3500);
-},2200);
+locBtn.addEventListener('click',()=>{ toast.textContent = 'Karte zentriert auf Ihren Standort'; show(toast); setTimeout(()=>hide(toast),1600); });
 
-// Show disclaimer the first time user opens the preview
-window.addEventListener('load',()=>{
-  if(!localStorage.getItem('disclaimerSeen')){
-    show(disclaimerModal);
-  }
-});
+setTimeout(()=>{ toast.style.display='block'; toast.addEventListener('click',()=>{ hide(toast); show(warningModal); }); setTimeout(()=>{ if(toast.style.display==='block') hide(toast); },3500); },2200);
 
-// Chip selection (type selector) - simple UI feedback
-document.querySelectorAll('.chip[data-type]').forEach(c=>{
-  c.addEventListener('click',()=>{
-    document.querySelectorAll('.chip[data-type]').forEach(x=>x.classList.remove('active'));
-    c.classList.add('active');
-    // update legend / placeholder behaviour
-    recommendPanel.querySelector('h3').textContent = c.textContent + ' — Empfehlungen';
-  });
-});
+window.addEventListener('load',()=>{ if(!localStorage.getItem('disclaimerSeen')){ show(disclaimerModal); } });
 
-// Clicking map image also opens a quick warning (placeholder for tapping map)
-document.querySelector('.map-container img').addEventListener('click',()=>{
-  show(warningModal);
-});
+document.querySelectorAll('.chip[data-type]').forEach(c=>{ c.addEventListener('click',()=>{ document.querySelectorAll('.chip[data-type]').forEach(x=>x.classList.remove('active')); c.classList.add('active'); recommendPanel.querySelector('h3').textContent = c.textContent + ' — Empfehlungen'; }); });
 
 </script>
 </html>
-</html>
+
