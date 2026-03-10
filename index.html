@@ -94,27 +94,7 @@
     cursor:grab;
   }
 
-  .zoom-controls{
-    position:absolute;
-    left:12px;
-    bottom:12px;
-    top:auto;
-    display:flex;
-    flex-direction:column;
-    gap:8px;
-    z-index:15;
-  }
 
-  .zoom-controls button{
-    width:40px;
-    height:40px;
-    border-radius:10px;
-    background:rgba(255,255,255,0.08);
-    color:white;
-    border:0;
-    font-size:20px;
-    cursor:pointer;
-  }
 
   /* HEATMAP LAYER (above image) */
   /* Heatmap canvas only (on top of map) */
@@ -164,6 +144,8 @@
     background:rgba(85, 85, 85, 0.6);
     font-size:13px;
     cursor:pointer;
+    border:none;
+    color:white;
   }
 
   .chip.active{
@@ -284,20 +266,7 @@
     color:#04140f;
   }
 
-  .loc-btn{
-    position:absolute;
-    right:18px;
-    bottom:154px;
-    width:44px;
-    height:44px;
-    border-radius:12px;
-    background:rgba(255,255,255,.08);
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    z-index:20;
-    cursor:pointer;
-  }
+
 </style>
 </head>
 <body>
@@ -319,8 +288,6 @@
     <canvas id="heatmap"></canvas>
     <div class="search-bar" id="travelSearch">
       <input id="searchInput" placeholder="Ort oder Datum eingeben..." />
-      <button id="searchBtn" class="chip">Suchen</button>
-      <button id="closeSearch" class="chip">Schließen</button>
     </div>
   </div>
 
@@ -335,8 +302,6 @@
     <div class="chip" data-type="measles">Malaria</div>
     <div class="chip" data-type="novel">Mosquitos</div>
   </div>
-
-  <div class="loc-btn" title="Zentrieren">📍</div>
 
   <div class="modal" id="warningModal">
     <h3>Warnungen</h3>
@@ -384,7 +349,7 @@ const heatmapCanvas = document.getElementById('heatmap');
 const mapImage = document.getElementById('mapImage');
 
 // Reasonable zoom bounds for the phone preview: prevent too-far-out and too-far-in
-let scale = 1, minScale = 0.6, maxScale = 4, offsetX = 0, offsetY = 0;
+let scale = 1, minScale = 0.9, maxScale = 20, offsetX = 0, offsetY = 0;
 let pointers = new Map();
 let dragging = false;
 let lastX = 0, lastY = 0;
@@ -491,12 +456,6 @@ mapContainer.addEventListener('pointerup', (e)=>{
 });
 mapContainer.addEventListener('pointercancel', (e)=>{ pointers.delete(e.pointerId); dragging=false; mapImage.style.cursor='grab'; pinchStartDist=0; });
 
-// click detection (prefer small-move clicks)
-let clickCandidate = false;
-mapContainer.addEventListener('pointerdown', ()=>{ clickCandidate = true; });
-mapContainer.addEventListener('pointermove', ()=>{ clickCandidate = false; });
-mapContainer.addEventListener('click', ()=>{ if(clickCandidate) show(warningModal); });
-
 // wheel zoom (center on cursor)
 mapContainer.addEventListener('wheel', (e)=>{
   e.preventDefault();
@@ -524,15 +483,7 @@ function zoomBy(factor, cx, cy){
   updateTransform();
 }
 
-function createZoomControls(){
-  const zc = document.createElement('div');
-  zc.className = 'zoom-controls';
-  zc.innerHTML = '<button id="zoomIn">+</button><button id="zoomOut">−</button>';
-  mapContainer.appendChild(zc);
-  document.getElementById('zoomIn').addEventListener('click', ()=>zoomBy(1.25));
-  document.getElementById('zoomOut').addEventListener('click', ()=>zoomBy(0.8));
-}
-createZoomControls();
+
 
 // --- Existing UI behavior (kept mostly unchanged) ---
 
@@ -543,7 +494,6 @@ const warningModal = document.getElementById('warningModal');
 const recommendPanel = document.getElementById('recommendPanel');
 const disclaimerModal = document.getElementById('disclaimerModal');
 const toast = document.getElementById('toast');
-const locBtn = document.querySelector('.loc-btn');
 const planBtn = document.querySelector('.plan-btn');
 const travelSearch = document.getElementById('travelSearch');
 const searchInput = document.getElementById('searchInput');
@@ -553,7 +503,6 @@ const closeSearch = document.getElementById('closeSearch');
 function show(el){ el.style.display='block'; }
 function hide(el){ el.style.display='none'; }
 
-warningBtn.addEventListener('click',()=>{ show(warningModal); hide(recommendPanel); });
 document.getElementById('closeWarning').addEventListener('click',()=>hide(warningModal));
 document.getElementById('warningDetails').addEventListener('click',()=>{ hide(warningModal); show(recommendPanel); });
 fab.addEventListener('click',()=>{ show(recommendPanel); hide(warningModal); });
@@ -564,13 +513,10 @@ settingsBtn.addEventListener('click',()=>{
 
 if(planBtn){ planBtn.addEventListener('click',()=>{ if(travelSearch.style.display==='block'){ travelSearch.style.display='none'; } else { travelSearch.style.display='block'; searchInput.focus(); } hide(warningModal); hide(recommendPanel); }); }
 if(closeSearch){ closeSearch.addEventListener('click',()=>{ travelSearch.style.display='none'; }); }
-if(searchBtn){ searchBtn.addEventListener('click',()=>{ const q = searchInput.value.trim(); if(!q) return; toast.textContent = 'Reiseplanung: ' + q; show(toast); setTimeout(()=>hide(toast),2000); travelSearch.style.display='none'; }); }
+if(searchBtn){ searchBtn.addEventListener('click',()=>{ const q = searchInput.value.trim(); if(!q) return; document.querySelector('#warningModal p').innerHTML = '<strong>Hochrisikozone:</strong> Starker Mückenbefall in ' + q + ' (2 km). Vermeiden Sie stehendes Wasser.'; show(warningModal); travelSearch.style.display='none'; }); }
+if(searchInput){ searchInput.addEventListener('keypress',(e)=>{ if(e.key==='Enter'){ const q = searchInput.value.trim(); if(!q) return; document.querySelector('#warningModal p').innerHTML = '<strong>Hochrisikozone:</strong> Starker Mückenbefall in ' + q + ' (2 km). Vermeiden Sie stehendes Wasser.'; show(warningModal); travelSearch.style.display='none'; } }); }
 
 document.getElementById('acceptDisclaimer').addEventListener('click',()=>{ localStorage.setItem('disclaimerSeen','1'); hide(disclaimerModal); });
-
-locBtn.addEventListener('click',()=>{ toast.textContent = 'Karte zentriert auf Ihren Standort'; show(toast); setTimeout(()=>hide(toast),1600); });
-
-setTimeout(()=>{ toast.style.display='block'; toast.addEventListener('click',()=>{ hide(toast); show(warningModal); }); setTimeout(()=>{ if(toast.style.display==='block') hide(toast); },3500); },2200);
 
 window.addEventListener('load',()=>{ if(!localStorage.getItem('disclaimerSeen')){ show(disclaimerModal); } });
 
