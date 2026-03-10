@@ -287,7 +287,7 @@
     <img id="mapImage" src="WorldMap.svg" alt="World map" draggable="false" style="width:100%;height:100%;object-fit:contain;touch-action:none;cursor:grab;" />
     <canvas id="heatmap"></canvas>
     <div class="search-bar" id="travelSearch">
-      <input id="searchInput" placeholder="Ort oder Datum eingeben..." />
+      <input id="searchInput" placeholder="Ort und Datum eingeben..." />
     </div>
   </div>
 
@@ -346,6 +346,7 @@
 // Map pan/zoom using local WorldMap.svg (no external sources)
 const mapContainer = document.querySelector('.map-container');
 const heatmapCanvas = document.getElementById('heatmap');
+const ctx = heatmapCanvas.getContext('2d');
 const mapImage = document.getElementById('mapImage');
 
 // Reasonable zoom bounds for the phone preview: prevent too-far-out and too-far-in
@@ -360,6 +361,7 @@ function clamp(v,a,b){ return Math.min(b, Math.max(a, v)); }
 function updateTransform(){
   mapImage.style.transformOrigin = '0 0';
   mapImage.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+  ctx.setTransform(scale, 0, 0, scale, offsetX, offsetY);
 }
 
 function resizeCanvases(){
@@ -497,8 +499,6 @@ const toast = document.getElementById('toast');
 const planBtn = document.querySelector('.plan-btn');
 const travelSearch = document.getElementById('travelSearch');
 const searchInput = document.getElementById('searchInput');
-const searchBtn = document.getElementById('searchBtn');
-const closeSearch = document.getElementById('closeSearch');
 
 function show(el){ el.style.display='block'; }
 function hide(el){ el.style.display='none'; }
@@ -512,9 +512,7 @@ settingsBtn.addEventListener('click',()=>{
 });
 
 if(planBtn){ planBtn.addEventListener('click',()=>{ if(travelSearch.style.display==='block'){ travelSearch.style.display='none'; } else { travelSearch.style.display='block'; searchInput.focus(); } hide(warningModal); hide(recommendPanel); }); }
-if(closeSearch){ closeSearch.addEventListener('click',()=>{ travelSearch.style.display='none'; }); }
-if(searchBtn){ searchBtn.addEventListener('click',()=>{ const q = searchInput.value.trim(); if(!q) return; document.querySelector('#warningModal p').innerHTML = '<strong>Hochrisikozone:</strong> Starker Mückenbefall in ' + q + ' (2 km). Vermeiden Sie stehendes Wasser.'; show(warningModal); travelSearch.style.display='none'; }); }
-if(searchInput){ searchInput.addEventListener('keypress',(e)=>{ if(e.key==='Enter'){ const q = searchInput.value.trim(); if(!q) return; document.querySelector('#warningModal p').innerHTML = '<strong>Hochrisikozone:</strong> Starker Mückenbefall in ' + q + ' (2 km). Vermeiden Sie stehendes Wasser.'; show(warningModal); travelSearch.style.display='none'; } }); }
+if(searchInput){ searchInput.addEventListener('keypress',(e)=>{ if(e.key==='Enter'){ const q = searchInput.value.trim(); if(!q) return; document.querySelector('#warningModal p').innerHTML = '<strong>Hochrisikozone:</strong> Starker Mückenbefall in ' + q + ' (2 km). Vermeiden Sie stehendes Wasser.'; show(warningModal); travelSearch.style.display='none'; const heatmapImg = new Image(); heatmapImg.src = 'heatmap.png'; heatmapImg.onload = () => { ctx.drawImage(heatmapImg, 0, 0); }; } }); }
 
 document.getElementById('acceptDisclaimer').addEventListener('click',()=>{ localStorage.setItem('disclaimerSeen','1'); hide(disclaimerModal); });
 
