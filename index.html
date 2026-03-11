@@ -512,7 +512,7 @@ settingsBtn.addEventListener('click',()=>{
 });
 
 if(planBtn){ planBtn.addEventListener('click',()=>{ if(travelSearch.style.display==='block'){ travelSearch.style.display='none'; } else { travelSearch.style.display='block'; searchInput.focus(); } hide(warningModal); hide(recommendPanel); }); }
-if(searchInput){ searchInput.addEventListener('keypress',(e)=>{ if(e.key==='Enter'){ const q = searchInput.value.trim(); if(!q) return; document.querySelector('#warningModal p').innerHTML = '<strong>Hochrisikozone:</strong> Starker Mückenbefall in ' + q + ' (2 km). Vermeiden Sie stehendes Wasser.'; show(warningModal); travelSearch.style.display='none'; const heatmapImg = new Image(); heatmapImg.src = 'heatmap.png'; heatmapImg.onload = () => { ctx.drawImage(heatmapImg, 0, 0); }; } }); }
+if(searchInput){ searchInput.addEventListener('keypress',(e)=>{ if(e.key==='Enter'){ const q = searchInput.value.trim(); if(!q) return; document.querySelector('#warningModal p').innerHTML = '<strong>Hochrisikozone:</strong> Starker Mückenbefall in ' + q + ' (2 km). Vermeiden Sie stehendes Wasser.'; show(warningModal); travelSearch.style.display='none'; const heatmapImg = new Image(); heatmapImg.src = 'heatmap.png'; heatmapImg.onload = () => { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.drawImage(heatmapImg, 0, 0); ctx.restore(); }; } }); }
 
 document.getElementById('acceptDisclaimer').addEventListener('click',()=>{ localStorage.setItem('disclaimerSeen','1'); hide(disclaimerModal); });
 
